@@ -4,26 +4,39 @@ IF NOT EXISTS (SELECT 1 FROM sys.all_objects WHERE object_id = OBJECT_ID('[dbo].
     EXECUTE ('CREATE PROCEDURE [dbo].[sp_CloneRights] AS BEGIN PRINT ''Container for sp_CloneRights (C) Pavel Pawlowski'' END');
 GO
 /* ****************************************************
-sp_CloneRights v0.35 (2017-08-03)
-(C) 2010 - 2017 Pavel Pawlowski
+sp_CloneRights v0.40 (2017-11-14)
 
 Feedback: mailto:pavel.pawlowski@hotmail.cz
 
-License: 
-    sp_CloneRights is free to download and use for personal, educational, and internal 
-    corporate purposes, provided that this header is preserved. Redistribution or sale 
-    of sp_CloneRights, in whole or in part, is prohibited without the author's express 
-    written consent.
+MIT License
+
+Copyright (c) 2017 Pavel Pawlowski
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 Description:
     Clones rights and/or group membership for specified user(s)
 
 Parameters:
-     @user                      sysname         = NULL  - Comma separated list of user names to sciprt rights. 
-                                                        - Supports wildcards when eg ''%%'' means all users
-                                                        - [-] prefix means except
+     @user                      nvarchar(max)   = NULL  - Supports LIKE wildcards
     ,@newUser                   sysname         = NULL  - New user to which copy rights. If New users is provided, @Old user must return exactly one record
-    ,@database                  nvarchar(max)   = NULL  - Comma separated listof databases to be iterated and permissions scripted. 
+    ,@database                  nvarchar(max)   = NULL  - Comma separated list of databases to be iterated and permissions scripted. 
                                                         - Supports Like wildcards. NULL means current database
                                                         - [-] prefix means except
     ,@scriptClass               nvarchar(max)   = NULL  - Comma separated list of permission classes to script. NULL = ALL
@@ -33,9 +46,9 @@ Parameters:
 
 * ***************************************************** */ 
 ALTER PROCEDURE [dbo].[sp_CloneRights] 
-    @user                       sysname         = NULL, --Old user from which to copy right 
+    @user                       nvarchar(max)   = NULL, --Comma separated list of database principals to script he rights. Supports LIKE wildcards
     @newUser                    sysname         = NULL, --New user to which copy rights
-    @database                   nvarchar(max)   = NULL, --Comma separated listof databases to be iterated and permissions scripted. Supports Like wildcards
+    @database                   nvarchar(max)   = NULL, --Comma separated list of databases to be iterated and permissions scripted. Supports Like wildcards NULL Means current database
     @scriptClass                nvarchar(max)   = NULL, --Comma separated list of permission classes to script. NULL = ALL
     @printOnly                  bit             = 1     --When 1 then only script is printed on screen, when 0 then also script is executed, when NULL, script is only executed and not printed
 AS
@@ -91,7 +104,7 @@ CREATE TABLE #output (
 
 
 --Set and print the procedure output caption
-RAISERROR(N'PRINT ''sp_CloneRights v0.35 (2017-08-03) (C) 2010-2017 Pavel Pawlowski''', 0, 0) WITH NOWAIT;
+RAISERROR(N'PRINT ''sp_CloneRights v0.40 (2017-11-14) (C) 2010-2017 Pavel Pawlowski''', 0, 0) WITH NOWAIT;
 RAISERROR(N'PRINT ''===============================================================''', 0, 0) WITH NOWAIT;
 
 INSERT INTO @allowedClasses(ClassName, ClassDescription)
@@ -103,11 +116,11 @@ VALUES
         ,(N'OBJECT'                         , 'Scripts permissions on all schema scoped objects')
         ,(N'TABLE'                          , 'Scripts permissions on user tables and/or table columns')
         ,(N'SYSTEM_TABLE'                   , 'Scripts permissions on system tables and/or table columns. SYSTEM_TABLE must be explicitly specified')
-        ,(N'VIEW'                           , 'Scripts permissions on all views/andor view columns')
-        ,(N'STORED_PROCEDURE'               ,  'Scripts permissions on stored procedrues')
-        ,(N'SQL_STORED_PROCEDURE'           , 'Scripts permissions on SQL stored procedrues')
-        ,(N'CLR_STORED_PROCEDURE'           , 'Scripts permissions on CLR stored procedrues')
-        ,(N'EXTENDED_STORED_PROCEDURE'      , 'Scripts permissions on Extended stored procedrues. EXTENDED_STORED_PROCEDURE must be explicitly specified')
+        ,(N'VIEW'                           , 'Scripts permissions on all views and/or view columns')
+        ,(N'STORED_PROCEDURE'               , 'Scripts permissions on stored procedures')
+        ,(N'SQL_STORED_PROCEDURE'           , 'Scripts permissions on SQL stored procedures')
+        ,(N'CLR_STORED_PROCEDURE'           , 'Scripts permissions on CLR stored procedures')
+        ,(N'EXTENDED_STORED_PROCEDURE'      , 'Scripts permissions on Extended stored procedures. EXTENDED_STORED_PROCEDURE must be explicitly specified')
         ,(N'FUNCTION'                       , 'Scripts permissions on all functions')
         ,(N'SQL_FUNCTION'                   , 'Scripts permissions on all SQL functions')
         ,(N'CLR_FUNCTION'                   , 'Scripts permissions on all CLR functions')
@@ -140,7 +153,7 @@ VALUES
         ,(N'XML_SCHEMA_COLLECTION'          , 'Scripts permissions on all XML schema collections')
         
         ,(N''                               ,'')
-        ,(N'SERVICE_BROKER'                 , 'Scripts permissions on all service broker related bojects')
+        ,(N'SERVICE_BROKER'                 , 'Scripts permissions on all service broker related objects')
         ,(N'MESSAGE_TYPE'                   , 'Scripts permissions on all message types')
         ,(N'SERVICE_CONTRACT'               , 'Scripts permissions on all service contracts')
         ,(N'SERVICE'                        , 'Scripts permissions on all services')
@@ -207,7 +220,7 @@ SET @wrongClasses = ISNULL(STUFF((SELECT
                                     N',' + c.ClassName
                                 FROM @inputClasses c
                                 LEFT JOIN @allowedClasses ac ON ac.ClassName LIKE LTRIM(RTRIM(c.ClassName))
-                                WHERE ac.ClassName IS NULL AND ac.ClassName <> ''
+                                WHERE ac.ClassName IS NULL
                                 FOR XML PATH(N''))
                         , 1, 1, N'')
                     , N'');
@@ -226,7 +239,6 @@ SELECT
 FROM @inputClasses c
 INNER JOIN @allowedClasses ac ON ac.ClassName LIKE LTRIM(RTRIM(c.ClassName))
 
-
 IF @user IS NULL OR @printHelp = 1
 BEGIN
     RAISERROR(N'', 0, 0) WITH NOWAIT;
@@ -236,11 +248,11 @@ BEGIN
     RAISERROR(N'[sp_CloneRights] parameters', 0, 0)
     RAISERROR(N'', 0, 0)
     SET @msg = N'Parameters:
-     @user          sysname         = NULL  - Comma separated list of user names to sciprt rights.
+     @user          nvarchar(max)   = NULL  - Comma separated list of database principals to script the rights
                                             - Supports wildcards when eg ''%%'' means all users
                                             - [-] prefix means except
-    ,@newUser       sysname         = NULL  - New user to which copy rights. If New users is provided, @Old user must return exactly one record
-    ,@database      nvarchar(max)   = NULL  - Comma separated listof databases to be iterated and permissions scripted. 
+    ,@newUser       sysname         = NULL  - New database principal to which copy rights. If @newUser is provided, @user must match exactly one database principal
+    ,@database      nvarchar(max)   = NULL  - Comma separated list of databases to be iterated and permissions scripted. 
                                             - Supports Like wildcards. NULL means current database
                                             - [-] prefix means except
     ,@scriptClass   nvarchar(max)   = NULL  - Comma separated list of permission classes to script. NULL = ALL
@@ -369,8 +381,14 @@ BEGIN
                 UNION ALL SELECT ''-----------------------------------------------------------'';
 
                 INSERT INTO #output(command)
-                SELECT ''EXEC sp_addrolemember @rolename ='' 
-                    + SPACE(1) + QUOTENAME(USER_NAME(rm.role_principal_id), '''''''') + '', @membername ='' + SPACE(1) + QUOTENAME(@NewUser, '''''''') AS command
+                SELECT 
+                    CASE 
+                        WHEN CONVERT(int, SERVERPROPERTY(''ProductMajorVersion'')) >= 11 THEN
+                            ''ALTER ROLE '' + QUOTENAME(USER_NAME(rm.role_principal_id)) + '' ADD MEMBER '' + QUOTENAME(@NewUser)
+                        ELSE
+                        ''EXEC sp_addrolemember @rolename ='' 
+                        + SPACE(1) + QUOTENAME(USER_NAME(rm.role_principal_id), '''''''') + '', @membername ='' + SPACE(1) + QUOTENAME(@NewUser, '''''''')
+                    END AS command
                 FROM sys.database_role_members AS rm
                 WHERE USER_NAME(rm.member_principal_id) COLLATE database_default = @OldUser
                 ORDER BY rm.role_principal_id ASC';
@@ -477,94 +495,94 @@ BEGIN
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'TABLE') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='U', @msg='Clonning permission on user tables'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='U', @msg='Clonning permission on user tables'
             END
             --Scripts permissions on System tables
             IF EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN ('SYSTEM_TABLE') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='S', @msg='Clonning permission on system tables'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='S', @msg='Clonning permission on system tables'
             END
             --Scripts permissions on Views
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'VIEW') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='V', @msg='Clonning permission on views'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='V', @msg='Clonning permission on views'
             END
 
             --Scripts permissions on SQL Stored Procs
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'STORED_PROCEDURE', 'SQL_STORED_PROCEDURE') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='P', @msg='Clonning permission on SQL stored procedures'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='P', @msg='Clonning permission on SQL stored procedures'
             END
             --Scripts permissions on CLR Stored Procs
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'STORED_PROCEDURE', 'CLR_STORED_PROCEDURE') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='PC', @msg='Clonning permission on CLR stored procedures'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='PC', @msg='Clonning permission on CLR stored procedures'
             END
             --Scripts permissions on Extended Stored Procs
             IF EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN ('EXTENDED_STORED_PROCEDURE') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='X', @msg='Clonning permission on extended stored procedures'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='X', @msg='Clonning permission on extended stored procedures'
             END
 
             --Scripts permissions on SQL inline table-valued fucntions
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'FUNCTION', 'SQL_FUNCTION', 'INLINE_FUNCTION') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='IF', @msg='Clonning permission on SQL inline table-valued functions'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='IF', @msg='Clonning permission on SQL inline table-valued functions'
             END
 
             --Scripts permissions on SQL Scalar functions
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'FUNCTION', 'SQL_FUNCTION', 'SCALAR_FUNCTION', 'SQL_SCALAR_FUNCTION') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='FN', @msg='Clonning permission on SQL scalar functions'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='FN', @msg='Clonning permission on SQL scalar functions'
             END
 
             --Scripts permissions on SQL table valued functions
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'FUNCTION', 'SQL_FUNCTION', 'TABLE_VALUED_FUNCTION', 'SQL_TABLE_VALUED_FUNCTION') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='TF', @msg='Clonning permission on SQL table-valued functions'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='TF', @msg='Clonning permission on SQL table-valued functions'
             END
 
             --Scripts permissions on CLR table valued functions
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'FUNCTION', 'CLR_FUNCTION', 'TABLE_VALUED_FUNCTION', 'CLR_TABLE_VALUED_FUNCTION') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='FT', @msg='Clonning permission on CLR table-valued functions'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='FT', @msg='Clonning permission on CLR table-valued functions'
             END
 
             --Scripts permissions on CLR tscalar functions
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'FUNCTION', 'CLR_FUNCTION', 'SCALAR_FUNCTION', 'CLR_SCALAR_FUNCTION') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='FS', @msg='Clonning permission on CLR scalar functions'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='FS', @msg='Clonning permission on CLR scalar functions'
             END
 
             --Scripts permissions on CLR aggregate functions
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'FUNCTION', 'CLR_FUNCTION', 'AGGREGATE_FUNCTION') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='AF', @msg='Clonning permission on aggregate functions (CLR)'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='AF', @msg='Clonning permission on aggregate functions (CLR)'
             END
 
             --Scripts permissions on synonyms
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'SYNONYM') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='SN', @msg='Clonning permission on synonyms'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='SN', @msg='Clonning permission on synonyms'
             END
 
             --Scripts permissions on Sequences
             IF @scriptClass IS NULL OR EXISTS(SELECT ClassName FROM @classes WHERE ClassName IN (N'OBJECT', 'SEQUENCE') )
             BEGIN
                 EXEC sp_executesql @sql, N'@OldUser sysname, @NewUser sysname, @objType char(2), @msg nvarchar(max)', 
-                    @OldUser = @userName, @NewUser = @newUserName, @objTYpe='SO', @msg='Clonning permission on sequences'
+                    @OldUser = @userName, @NewUser = @newUserName, @objType='SO', @msg='Clonning permission on sequences'
             END
 
     
@@ -1151,6 +1169,6 @@ DROP TABLE #output;
 END
 GO
 
---Mark Stored Procedure as system object, so it executeds in the context of current database.
+--Mark Stored Procedure as system object, so it executes in the context of current database.
 EXECUTE sp_ms_marksystemobject 'dbo.sp_CloneRights'
 GO

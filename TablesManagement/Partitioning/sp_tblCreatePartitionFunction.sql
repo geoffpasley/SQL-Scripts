@@ -4,31 +4,47 @@ IF NOT EXISTS(SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID('[dbo].[sp_t
 	EXEC (N'CREATE PROCEDURE [dbo].[sp_tblCreatePartitionFunction] AS PRINT ''Container''')
 GO
 /* ****************************************************
-sp_tblCreatePartitionFunction v 0.3 (2016-10-15)
-(C) 2014 - 2016 Pavel Pawlowski
+sp_tblCreatePartitionFunction v 0.33 (2017-10-30)
 
 Feedback: mailto:pavel.pawlowski@hotmail.cz
 
-License: 
-	sp_tblCreatePartitionFunction is free to download and use for personal, educational, and internal 
-	corporate purposes, provided that this header is preserved. Redistribution or sale 
-	of sp_tblCreatePartitionFunction, in whole or in part, is prohibited without the author's express 
-	written consent.
+MIT License
 
-Description: Generates Partition function for specified range of dates in specified format
+Copyright (c) 2017 Pavel Pawlowski
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Description: 
+    Generates Partition function for specified range of dates in specified format
 
 Usage:
     sp_tblCreatePartitionFunction [parameters]
 
 Parameters:
-     @pfName            nvarchar(128)   = NULL      --PartitionFunctionname
-    ,@rangeStart        sql_variant     = NULL      --Start of the Range. you should pass proper data type or strig in proper formant
+     @pfName            nvarchar(128)   = NULL      --Partition function name
+    ,@rangeStart        sql_variant     = NULL      --Start of the Range. you should pass proper data type or string in proper format
     ,@rangeEnd          sql_variant     = NULL      --End of the Range. You should pass proper data type or string in proper format
     ,@boundaryType      nvarchar(5)     = ''RIGHT''   --Range Boundary Type (RIGHT or LEFT)
     ,@incrementValue    int             = 1         --Specifies how many increment units should be incremented in each step
-    ,@incrementUnit     nvarchar(10)    = ''MONTH''   --Range Increment Type eg. YAER, MONTH, WEEK, ISO_WEEK, DAY. 
+    ,@incrementUnit     nvarchar(10)    = ''MONTH''   --Range Increment Type eg. YEAR, MONTH, WEEK, ISO_WEEK, DAY. 
                                                     --Used only for date ranges
-    ,@useIntegerDates   bit             = 1         --Specifies whether dates should be interpreted as integers or as origianl range date data type in case of Dates
+    ,@useIntegerDates   bit             = 1         --Specifies whether dates should be interpreted as integers or as original range date data type in case of Dates
     ,@integerFormatType tinyint         = 2         --Specifies how the int data type is being formatted. 1 or 2. 
                                                     --1 = format is yyyymmdd and 
                                                     --2 = format using yyyxx(x) where xx(x) represents month, week or day
@@ -39,7 +55,7 @@ Range parameters specification:
 
 If string value passed as @rageStart or @Range end is convertible into a datetime data type, the datetime data type will be used for the partition function.
 
-In additon a Format specifier can be used as firt character of the string:
+In addition a Format specifier can be used as first character of the string:
 (D = date, T = datetime, B = bigint, I = int, S = smallint)
 
 ''2016-01-01''      - converted to:     datetime    2016-01-01
@@ -53,13 +69,13 @@ In additon a Format specifier can be used as firt character of the string:
 Modifications: 
 * ***************************************************** */ 
 ALTER PROCEDURE [dbo].[sp_tblCreatePartitionFunction]
-     @pfName            nvarchar(128)   = NULL      --PartitionFunctionname
-    ,@rangeStart        sql_variant     = NULL      --Start of the Range. you should pass proper data type or strig in proper formant
+     @pfName            nvarchar(128)   = NULL      --Partition function name
+    ,@rangeStart        sql_variant     = NULL      --Start of the Range. you should pass proper data type or string in proper formant
     ,@rangeEnd          sql_variant     = NULL      --End of the Range. You should pass proper data type or string in proper format
     ,@boundaryType      nvarchar(5)     = 'RIGHT'   --Range Boundary Type (RIGHT or LEFT)
     ,@incrementValue    int             = 1         --Specifies how many increment units should be incremented
-    ,@incrementUnit     nvarchar(10)    = 'MONTH'   --Range Increment Type eg. YAER, MONTH, WEEK, ISO_WEEK, DAY. Used only for date ranges
-    ,@useIntegerDates   bit             = 1         --Specifies whether dates should be interpreted as integers or as origianl range date data type
+    ,@incrementUnit     nvarchar(10)    = 'MONTH'   --Range Increment Type eg. YEAR, MONTH, WEEK, ISO_WEEK, DAY. Used only for date ranges
+    ,@useIntegerDates   bit             = 1         --Specifies whether dates should be interpreted as integers or as original range date data type
     ,@integerFormatType tinyint         = 2         --Specifies how the int data type is being formatted. 1 or 2. 1 = format is yyyymmdd and 2 = format using yyyxx(x) where xx(x) represents month, week or day
     ,@printScriptOnly   bit             = 1         --Specifies whether script should be printed or the function should be automatically created. Default is print script
 AS
@@ -77,13 +93,13 @@ BEGIN
 		,@msg                   nvarchar(max)                                   --message
 		,@printHelp             bit             = 0		                        --Specifies whether to print help
         ,@isDateRange           bit             = 0                             --indicates whether we are operating with date ranges
-        ,@rangeBaseType         nvarchar(10)                                    --stores the data type fo the input @erangeStart
+        ,@rangeBaseType         nvarchar(10)                                    --stores the data type fo the input @rangeStart
         ,@typeConvert           char(1)                                         --Type of conversion in input Range in case string is passed
         ,@strRangeStart         nvarchar(50)
         ,@strRangeEnd           nvarchar(50)
 
-	SET @caption = N'--sp_tblCreatePartitionFunction v 0.3 (2016-10-15) (C) 2014 - 2016 Pavel Pawlowski' + NCHAR(13) + NCHAR(10) + 
-				   N'--================================================================================' + NCHAR(13) + NCHAR(10);
+	SET @caption = N'--sp_tblCreatePartitionFunction v 0.33 (2017-10-30) (C) 2014 - 2017 Pavel Pawlowski' + NCHAR(13) + NCHAR(10) + 
+				   N'--=================================================================================' + NCHAR(13) + NCHAR(10);
 	RAISERROR(@caption, 0, 0) WITH NOWAIT;
 
 
@@ -112,7 +128,7 @@ BEGIN
             ELSE
                 SET @typeConvert = 'T'
                              
-            --if dates or nubmers are passed, try hanle conversion
+            --if dates or numbers are passed, try handle conversion
             IF (ISDATE(@strRangeStart) = 1 AND ISDATE(@strRangeEnd) = 1) OR (ISNUMERIC(CONVERT(nvarchar(50), @strRangeStart)) = 1 AND ISNUMERIC(@strRangeEnd) = 1)
             BEGIN
                 BEGIN TRY
@@ -194,14 +210,14 @@ Usage:
     sp_tblCreatePartitionFunction [parameters]
 
 Parameters:
-     @pfName            nvarchar(128)   = NULL      --PartitionFunctionname
-    ,@rangeStart        sql_variant     = NULL      --Start of the Range. you should pass proper data type or strig in proper formant
+     @pfName            nvarchar(128)   = NULL      --Partition function name
+    ,@rangeStart        sql_variant     = NULL      --Start of the Range. you should pass proper data type or string in proper formant
     ,@rangeEnd          sql_variant     = NULL      --End of the Range. You should pass proper data type or string in proper format
     ,@boundaryType      nvarchar(5)     = ''RIGHT''   --Range Boundary Type (RIGHT or LEFT)
     ,@incrementValue    int             = 1         --Specifies how many increment units should be incremented in each step
-    ,@incrementUnit     nvarchar(10)    = ''MONTH''   --Range Increment Type eg. YAER, MONTH, WEEK, ISO_WEEK, DAY. 
+    ,@incrementUnit     nvarchar(10)    = ''MONTH''   --Range Increment Type eg. YEAR, MONTH, WEEK, ISO_WEEK, DAY. 
                                                     --Used only for date ranges
-    ,@useIntegerDates   bit             = 1         --Specifies whether dates should be interpreted as integers or as origianl range date data type in case of Dates
+    ,@useIntegerDates   bit             = 1         --Specifies whether dates should be interpreted as integers or as original range date data type in case of Dates
     ,@integerFormatType tinyint         = 2         --Specifies how the int data type is being formatted. 1 or 2. 
                                                     --1 = format is yyyymmdd and 
                                                     --2 = format using yyyxx(x) where xx(x) represents month, week or day
@@ -215,7 +231,7 @@ Range parameters specification:
 
 If string value passed as @rageStart or @Range end is convertible into a datetime data type, the datetime data type will be used for the partition function.
 
-In additon a Format specifier can be used as firt character of the string:
+In addition a Format specifier can be used as first character of the string:
 (D = date, T = datetime, B = bigint, I = int, S = smallint)
 
 ''2016-01-01''      - converted to:     datetime    2016-01-01

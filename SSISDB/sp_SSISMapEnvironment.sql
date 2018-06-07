@@ -1,41 +1,62 @@
+IF NOT EXISTS(SELECT 1 FROM sys.databases where name = 'SSISDB')
+BEGIN
+    RAISERROR(N'SSIS Database Does not Exists', 15, 0)
+    SET NOEXEC ON;
+END
+GO
 USE [SSISDB]
 GO
 IF NOT EXISTS(SELECT * FROM sys.procedures WHERE object_id = OBJECT_ID('[dbo].[sp_SSISMapEnvironment]'))
     EXEC (N'CREATE PROCEDURE [dbo].[sp_SSISMapEnvironment] AS PRINT ''Placeholder for [dbo].[sp_SSISMapEnvironment]''')
 GO
 /* ****************************************************
-sp_SSISMapEnvironment v 0.10 (2017-05-31)
-(C) 2016 Pavel Pawlowski
+sp_SSISMapEnvironment v 0.11 (2017-10-30)
 
 Feedback: mailto:pavel.pawlowski@hotmail.cz
 
-License: 
-    sp_SSISMapEnvironment is free to download and use for personal, educational, and internal 
-    corporate purposes, provided that this header is preserved. Redistribution or sale 
-    of sp_SSISMapEnvironment, in whole or in part, is prohibited without the author's express 
-    written consent.
+MIT License
+
+Copyright (c) 2017 Pavel Pawlowski
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 Description:
-    Stored procedure maps Project/Object configuraiton parameters to corresponding Environment variables
+    Stored procedure maps Project/Object configuration parameters to corresponding Environment variables
     Mapping is done on parameter and variable name as well as data type.
 
 Parameters:
-     @folder            nvarchar(128)   = NULL  --Name of the Folder of the project to reset configuraions
+     @folder            nvarchar(128)   = NULL  --Name of the Folder of the project to reset configurations
     ,@project           nvarchar(128)   = NULL  --Name of the Project to reset configuration
     ,@environment       nvarchar(128)   = NULL	--Name of the environment to be mapped
-    ,@object            nvarchar(260)   = NULL	--Comma separated list of objects which parametes should be mapped. Supports LIKE wildcards. NULL Means all objects
+    ,@object            nvarchar(260)   = NULL	--Comma separated list of objects which parameters should be mapped. Supports LIKE wildcards. NULL Means all objects
     ,@parameter         nvarchar(max)   = NULL  --Comma separated list of parameters to be mapped. Supports LIKE wildcards. NULL Means all parameters.
-    ,@environmentFolder nvarchar(128)   = NULL	--Name of the envrionment folder to be mapped. When null, then the project folder is being used
+    ,@environmentFolder nvarchar(128)   = NULL	--Name of the environment folder to be mapped. When null, then the project folder is being used
     ,@setupReference    bit             = 1		--Specifies whether reference to the Environment should be setup on the Project
     ,@PrintOnly         bit             = 1     --Indicates whether the script will be printed only or executed
  ******************************************************* */
 ALTER PROCEDURE [dbo].[sp_SSISMapEnvironment]
-     @folder            nvarchar(128)   = NULL  --Name of the Folder of the project to reset configuraions
+     @folder            nvarchar(128)   = NULL  --Name of the Folder of the project to reset configurations
     ,@project           nvarchar(128)   = NULL  --Name of the Project to reset configuration
     ,@environment       nvarchar(128)   = NULL	--Name of the environment to be mapped
-    ,@object            nvarchar(260)   = NULL	--Comma separated list of objects which parametes should be cleared. Supports LIKE wildcards
+    ,@object            nvarchar(260)   = NULL	--Comma separated list of objects which parameters should be cleared. Supports LIKE wildcards
     ,@parameter         nvarchar(max)   = NULL  --Comma separated list of parameters to be cleared. Supports LIKE wildcards
-    ,@environmentFolder nvarchar(128)   = NULL	--Name of the envrionment folder to be mapped. When null, then the project folder is being used
+    ,@environmentFolder nvarchar(128)   = NULL	--Name of the environment folder to be mapped. When null, then the project folder is being used
     ,@setupReference    bit             = 1     --Specifies whether reference to the Environment should be setup on the Project
     ,@PrintOnly         bit             = 1     --Indicates whether the script will be printed only or executed
 WITH EXECUTE AS 'AllSchemaOwner'
@@ -63,7 +84,7 @@ BEGIN
         ,@headerPrefix                  nvarchar(20)    = N'RAISERROR(N'''
         ,@headerSuffix                  nvarchar(20)    = N''', 0, 0) WITH NOWAIT' 
 
-	--Table for holding list of paramters to be dropped
+	--Table for holding list of parameters to be dropped
 	CREATE TABLE #parametersToMap (
          parameter_id           bigint          NOT NULL	PRIMARY KEY CLUSTERED
         ,object_name	        nvarchar(128)
@@ -86,35 +107,35 @@ BEGIN
     END
 
     
-	RAISERROR(N'%ssp_SSISMapEnvironment v0.10 (2017-05-29) (C) 2016 Pavel Pawlowski%s', 0, 0, @headerPrefix, @headerSuffix) WITH NOWAIT;
+	RAISERROR(N'%ssp_SSISMapEnvironment v0.11 (2017-10-30) (C) 2016 Pavel Pawlowski%s', 0, 0, @headerPrefix, @headerSuffix) WITH NOWAIT;
     RAISERROR(N'%s=================================================================%s', 0, 0, @headerPrefix, @headerSuffix) WITH NOWAIT;
 
     --PRINT HELP
     IF @printHelp = 1
     BEGIN
-        RAISERROR(N'Maps Project/Object configuraiton parameters to corresponding Environment variables', 0, 0) WITH NOWAIT; 
+        RAISERROR(N'Maps Project/Object configuration parameters to corresponding Environment variables', 0, 0) WITH NOWAIT; 
         RAISERROR(N'Mapping is done on parameter and variable name as well as data type.', 0, 0) WITH NOWAIT; 
         RAISERROR(N'', 0, 0) WITH NOWAIT; 
         RAISERROR(N'Usage:', 0, 0) WITH NOWAIT; 
         RAISERROR(N'[sp_SSISMapEnvironment] parameters', 0, 0) WITH NOWAIT; 
         RAISERROR(N'', 0, 0) WITH NOWAIT; 
         SET @msg = N'Parameters:
-     @folder            nvarchar(128)   =       --Name of the Folder of the project to reset configuraions.
+     @folder            nvarchar(128)   =       - Name of the Folder of the project to reset configurations.
                                                   Folder is required and must exist.
-    ,@project           nvarchar(128)   =       --Name of the Project to reset configuration.
+    ,@project           nvarchar(128)   =       - Name of the Project to reset configuration.
                                                   Project is required and must exists.
-    ,@environment       nvarchar(128)   = NULL	--Name of the environment to be mapped
-	,@object            nvarchar(260)   = NULL	--Comma separated list of object names within project to include in matching. Supports LIKE wildcards
-                                                  Object is optional and if provided then only matching for that prticular objects will be done.
-    ,@parameter         nvarchar(128)   = NULL  --Comma separated list of parameter names within project to include in matching. Supports LIKE wildcards
+    ,@environment       nvarchar(128)   = NULL	- Name of the environment to be mapped
+	,@object            nvarchar(260)   = NULL	- Comma separated list of object names within project to include in matching. Supports LIKE wildcards
+                                                  Object is optional and if provided then only matching for that particular objects will be done.
+    ,@parameter         nvarchar(128)   = NULL  - Comma separated list of parameter names within project to include in matching. Supports LIKE wildcards
                                                   Parameter is optional and if provided then only matching for that parameters will be done
                                                   When @parameter is provided and @object not, then all parameters with that particular name
                                                   are are include in matching.
-    ,@environmentFolder nvarchar(128)   = NULL	--Name of the envrionment folder to be mapped. When null, then the project folder is being used
+    ,@environmentFolder nvarchar(128)   = NULL	- Name of the environment folder to be mapped. When null, then the project folder is being used
                                                   Also when NULL then eventual Reference is created as reference to local environment.
                                                   If Provided then the reference to a 
-    ,@setupReference    bit             = 1     --Specifies whether reference to the Environment should be setup on the Project
-    ,@PrintOnly         bit             = 1     --Indicates whether the script will be printed only or printed and executed                                                
+    ,@setupReference    bit             = 1     - Specifies whether reference to the Environment should be setup on the Project
+    ,@PrintOnly         bit             = 1     - Indicates whether the script will be printed only or printed and executed                                                
     '
 
         RAISERROR(@msg, 0, 0) WITH NOWAIT;
